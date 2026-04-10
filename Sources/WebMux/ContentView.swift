@@ -10,7 +10,7 @@ struct ContentView: View {
         HStack(spacing: 0) {
             // Icon strip sidebar
             VStack(spacing: 4) {
-                Spacer().frame(height: 28) // room for traffic lights
+                Spacer().frame(height: 4)
 
                 ForEach(store.services) { service in
                     sidebarIcon(for: service)
@@ -18,7 +18,6 @@ struct ContentView: View {
 
                 Spacer()
 
-                // Add button
                 Button(action: { showingAddSheet = true }) {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .medium))
@@ -28,7 +27,7 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .padding(.bottom, 8)
             }
-            .frame(width: 76)
+            .frame(width: 52)
             .background(.bar)
 
             Divider()
@@ -43,7 +42,6 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .ignoresSafeArea()
         .sheet(isPresented: $showingAddSheet) {
             AddServiceView(store: store)
         }

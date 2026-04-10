@@ -9,7 +9,7 @@ struct WebMuxApp: App {
             ContentView(store: store)
                 .task { await FaviconFetcher.fetchAll(store: store) }
         }
-        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact(showsTitle: false))
         .defaultSize(width: 1000, height: 700)
     }
 }

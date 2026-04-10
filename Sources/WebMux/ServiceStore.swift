@@ -46,6 +46,11 @@ final class ServiceStore {
         save()
     }
 
+    func move(fromOffsets source: IndexSet, toOffset destination: Int) {
+        services.move(fromOffsets: source, toOffset: destination)
+        save()
+    }
+
     func remove(id: UUID) {
         services.removeAll { $0.id == id }
         save()

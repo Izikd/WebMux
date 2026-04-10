@@ -6,6 +6,8 @@ struct ContentView: View {
     @State private var webViewManager = WebViewManager()
     @State private var showingAddSheet = false
 
+    @State private var draggedService: UUID?
+
     var body: some View {
         HStack(spacing: 0) {
             // Icon strip sidebar
@@ -14,6 +16,15 @@ struct ContentView: View {
 
                 ForEach(store.services) { service in
                     sidebarIcon(for: service)
+                        .onDrag {
+                            draggedService = service.id
+                            return NSItemProvider(object: service.id.uuidString as NSString)
+                        }
+                        .onDrop(of: [.text], delegate: ServiceDropDelegate(
+                            service: service,
+                            store: store,
+                            draggedService: $draggedService
+                        ))
                 }
 
                 Spacer()
@@ -85,5 +96,30 @@ struct ContentView: View {
                 .font(.system(size: 18))
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+struct ServiceDropDelegate: DropDelegate {
+    let service: Service
+    let store: ServiceStore
+    @Binding var draggedService: UUID?
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedService = nil
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let dragged = draggedService,
+              dragged != service.id,
+              let from = store.services.firstIndex(where: { $0.id == dragged }),
+              let to = store.services.firstIndex(where: { $0.id == service.id }) else { return }
+        withAnimation(.default) {
+            store.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
     }
 }

@@ -6,6 +6,8 @@ struct ContentView: View {
     @State private var webViewManager = WebViewManager()
     @State private var showingAddSheet = false
 
+    @State private var showingSettings = false
+
     @State private var draggedService: UUID?
 
     var body: some View {
@@ -28,6 +30,14 @@ struct ContentView: View {
                 }
 
                 Spacer()
+
+                Button(action: { showingSettings = true }) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 16, weight: .medium))
+                        .frame(width: 36, height: 36)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
 
                 Button(action: { showingAddSheet = true }) {
                     Image(systemName: "plus")
@@ -55,6 +65,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingAddSheet) {
             AddServiceView(store: store)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(webViewManager: webViewManager)
         }
         .onAppear {
             if selection == nil { selection = store.services.first?.id }

@@ -89,8 +89,8 @@ do_bundle() {
 </plist>
 PLIST
 
-    # Ad-hoc sign to avoid keychain prompts on each rebuild
-    codesign --force --deep --sign - "$BUNDLE"
+    # Ad-hoc sign with entitlements to avoid keychain prompts
+    codesign --force --deep --sign - --entitlements "$SCRIPT_DIR/WebMux.entitlements" "$BUNDLE"
 
     ok "Bundle created at $BUNDLE"
 }

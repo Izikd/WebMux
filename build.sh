@@ -53,6 +53,12 @@ do_bundle() {
 
     cp "$bin" "$BUNDLE/Contents/MacOS/$APP_NAME"
 
+    # Copy icon if present
+    mkdir -p "$BUNDLE/Contents/Resources"
+    if [[ -f "$SCRIPT_DIR/AppIcon.icns" ]]; then
+        cp "$SCRIPT_DIR/AppIcon.icns" "$BUNDLE/Contents/Resources/AppIcon.icns"
+    fi
+
     cat > "$BUNDLE/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -70,6 +76,8 @@ do_bundle() {
     <string>1.0</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSAppTransportSecurity</key>

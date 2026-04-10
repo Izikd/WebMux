@@ -7,48 +7,72 @@ struct ContentView: View {
     @State private var showingAddSheet = false
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $selection) {
+        HStack(spacing: 0) {
+            // Icon strip sidebar
+            VStack(spacing: 4) {
+                Spacer().frame(height: 28) // room for traffic lights
+
                 ForEach(store.services) { service in
-                    Label {
-                        Text(service.name)
-                    } icon: {
-                        faviconImage(for: service)
-                            .frame(width: 20, height: 20)
-                    }
-                    .tag(service.id)
-                    .contextMenu {
-                        Button("Remove", role: .destructive) {
-                            webViewManager.removeWebView(for: service.id)
-                            if selection == service.id { selection = nil }
-                            store.remove(id: service.id)
-                        }
-                    }
+                    sidebarIcon(for: service)
                 }
-            }
-            .listStyle(.sidebar)
-            .frame(minWidth: 160)
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button(action: { showingAddSheet = true }) {
-                        Image(systemName: "plus")
-                    }
+
+                Spacer()
+
+                // Add button
+                Button(action: { showingAddSheet = true }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .medium))
+                        .frame(width: 36, height: 36)
+                        .foregroundStyle(.secondary)
                 }
+                .buttonStyle(.plain)
+                .padding(.bottom, 8)
             }
-            .sheet(isPresented: $showingAddSheet) {
-                AddServiceView(store: store)
-            }
-        } detail: {
+            .frame(width: 52)
+            .background(.bar)
+
+            Divider()
+
+            // Webview area
             if let id = selection, let service = store.services.first(where: { $0.id == id }) {
                 WebViewContainer(webView: webViewManager.webView(for: service))
                     .id(id)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Text("Select a service")
-                    .foregroundStyle(.secondary)
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+        .ignoresSafeArea()
+        .sheet(isPresented: $showingAddSheet) {
+            AddServiceView(store: store)
         }
         .onAppear {
             if selection == nil { selection = store.services.first?.id }
+        }
+    }
+
+    private func sidebarIcon(for service: Service) -> some View {
+        Button(action: { selection = service.id }) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(selection == service.id ? Color.accentColor.opacity(0.2) : Color.clear)
+                    .frame(width: 40, height: 40)
+
+                faviconImage(for: service)
+                    .frame(width: 24, height: 24)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Remove", role: .destructive) {
+                webViewManager.removeWebView(for: service.id)
+                if selection == service.id {
+                    selection = store.services.first(where: { $0.id != service.id })?.id
+                }
+                store.remove(id: service.id)
+            }
         }
     }
 
@@ -60,8 +84,8 @@ struct ContentView: View {
                 .aspectRatio(contentMode: .fit)
         } else {
             Image(systemName: "globe")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
+                .font(.system(size: 18))
+                .foregroundStyle(.secondary)
         }
     }
 }

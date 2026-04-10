@@ -28,7 +28,7 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .padding(.bottom, 8)
             }
-            .frame(width: 52)
+            .frame(width: 76)
             .background(.bar)
 
             Divider()

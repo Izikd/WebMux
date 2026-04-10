@@ -89,6 +89,9 @@ do_bundle() {
 </plist>
 PLIST
 
+    # Ad-hoc sign to avoid keychain prompts on each rebuild
+    codesign --force --deep --sign - "$BUNDLE"
+
     ok "Bundle created at $BUNDLE"
 }
 

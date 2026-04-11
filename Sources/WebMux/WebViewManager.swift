@@ -24,6 +24,10 @@ final class WebViewManager {
         webViews.removeValue(forKey: id)
     }
 
+    func reload(for id: UUID) {
+        webViews[id]?.reload()
+    }
+
     func applyFontToAll() {
         for wv in webViews.values { applyFont(to: wv) }
     }

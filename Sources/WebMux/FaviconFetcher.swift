@@ -1,5 +1,6 @@
 import Foundation
 import FaviconFinder
+import AppKit
 
 enum FaviconFetcher {
     private static var cacheDir: URL {
@@ -12,17 +13,23 @@ enum FaviconFetcher {
     @MainActor
     static func fetch(for service: Service, store: ServiceStore) async {
         do {
-            let favicon = try await FaviconFinder(url: service.url)
+            let favicons = try await FaviconFinder(url: service.url)
                 .fetchFaviconURLs()
                 .download()
-                .first
-            guard let data = favicon?.image?.data else { return }
+            // Pick the largest icon
+            guard let best = try? favicons.largest(),
+                  let img = best.image else { return }
+
             let path = cacheDir.appendingPathComponent("\(service.id.uuidString).png")
-            try data.write(to: path)
+
+            guard let nsImg = NSImage(data: img.data) else { return }
+            if let png = ImageUtils.resize(nsImg, to: 64) {
+                try png.write(to: path)
+            } else {
+                try img.data.write(to: path)
+            }
             store.updateFaviconPath(for: service.id, path: path.path)
-        } catch {
-            // Favicon fetch failed — service will use globe icon
-        }
+        } catch {}
     }
 
     @MainActor

@@ -5,14 +5,12 @@ struct ContentView: View {
     @State private var selection: UUID?
     @State private var webViewManager = WebViewManager()
     @State private var showingAddSheet = false
-
     @State private var showingSettings = false
-
+    @State private var editingService: Service?
     @State private var draggedService: UUID?
 
     var body: some View {
         HStack(spacing: 0) {
-            // Icon strip sidebar
             VStack(spacing: 4) {
                 Spacer().frame(height: 4)
 
@@ -23,9 +21,7 @@ struct ContentView: View {
                             return NSItemProvider(object: service.id.uuidString as NSString)
                         }
                         .onDrop(of: [.text], delegate: ServiceDropDelegate(
-                            service: service,
-                            store: store,
-                            draggedService: $draggedService
+                            service: service, store: store, draggedService: $draggedService
                         ))
                 }
 
@@ -53,18 +49,25 @@ struct ContentView: View {
 
             Divider()
 
-            // Webview area
             if let id = selection, let service = store.services.first(where: { $0.id == id }) {
                 WebViewContainer(webView: webViewManager.webView(for: service))
                     .id(id)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Color.clear
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .sheet(isPresented: $showingAddSheet) {
-            AddServiceView(store: store)
+            ServiceEditorView(model: ServiceEditorModel(), store: store)
+        }
+        .sheet(item: $editingService) { service in
+            ServiceEditorView(model: ServiceEditorModel(editing: service), store: store, onRemove: {
+                webViewManager.removeWebView(for: service.id)
+                if selection == service.id {
+                    selection = store.services.first(where: { $0.id != service.id })?.id
+                }
+                store.remove(id: service.id)
+            })
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(webViewManager: webViewManager)
@@ -79,35 +82,27 @@ struct ContentView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(selection == service.id ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .frame(width: 40, height: 40)
-
+                    .frame(width: 44, height: 44)
                 faviconImage(for: service)
-                    .frame(width: 24, height: 24)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
             }
         }
         .buttonStyle(.plain)
+        .help(service.name)
+        .onHover { if $0 { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
         .contextMenu {
-            Button("Remove", role: .destructive) {
-                webViewManager.removeWebView(for: service.id)
-                if selection == service.id {
-                    selection = store.services.first(where: { $0.id != service.id })?.id
-                }
-                store.remove(id: service.id)
-            }
+            Button("Refresh") { webViewManager.reload(for: service.id) }
+            Button("Edit...") { editingService = service }
         }
     }
 
     @ViewBuilder
     private func faviconImage(for service: Service) -> some View {
         if let path = service.faviconPath, let nsImage = NSImage(contentsOfFile: path) {
-            Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
+            Image(nsImage: nsImage).resizable().aspectRatio(contentMode: .fit)
         } else {
-            Image(systemName: "globe")
-                .font(.system(size: 18))
-                .foregroundStyle(.secondary)
+            Image(systemName: "globe").font(.system(size: 18)).foregroundStyle(.secondary)
         }
     }
 }
@@ -117,22 +112,14 @@ struct ServiceDropDelegate: DropDelegate {
     let store: ServiceStore
     @Binding var draggedService: UUID?
 
-    func performDrop(info: DropInfo) -> Bool {
-        draggedService = nil
-        return true
-    }
+    func performDrop(info: DropInfo) -> Bool { draggedService = nil; return true }
 
     func dropEntered(info: DropInfo) {
-        guard let dragged = draggedService,
-              dragged != service.id,
+        guard let dragged = draggedService, dragged != service.id,
               let from = store.services.firstIndex(where: { $0.id == dragged }),
               let to = store.services.firstIndex(where: { $0.id == service.id }) else { return }
-        withAnimation(.default) {
-            store.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-        }
+        withAnimation { store.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to) }
     }
 
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
 }

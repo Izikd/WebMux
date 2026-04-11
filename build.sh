@@ -32,9 +32,9 @@ do_build() {
     local mode="${1:-debug}"
     info "Building ($mode)..."
     if [[ "$mode" == "release" ]]; then
-        swift build -c release --package-path "$SCRIPT_DIR"
+        swift build -v -c release --package-path "$SCRIPT_DIR"
     else
-        swift build --package-path "$SCRIPT_DIR"
+        swift build -v --package-path "$SCRIPT_DIR"
     fi
     ok "Build complete"
 }
@@ -89,8 +89,8 @@ do_bundle() {
 </plist>
 PLIST
 
-    # Ad-hoc sign with entitlements to avoid keychain prompts
-    codesign --force --deep --sign - --entitlements "$SCRIPT_DIR/WebMux.entitlements" "$BUNDLE"
+    # Sign with stable identity to avoid keychain prompts on rebuild
+    codesign --force --deep --sign "WebMux Dev" --entitlements "$SCRIPT_DIR/WebMux.entitlements" "$BUNDLE"
 
     ok "Bundle created at $BUNDLE"
 }

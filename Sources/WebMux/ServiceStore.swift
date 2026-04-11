@@ -6,12 +6,9 @@ struct Service: Codable, Identifiable, Hashable {
     var name: String
     var url: URL
     var faviconPath: String?
+    var faviconSourceURL: String?
 
-    static let defaults: [Service] = [
-        Service(id: UUID(), name: "WhatsApp", url: URL(string: "https://web.whatsapp.com")!),
-        Service(id: UUID(), name: "Telegram", url: URL(string: "https://web.telegram.org")!),
-        Service(id: UUID(), name: "Google Messages", url: URL(string: "https://messages.google.com/web")!),
-    ]
+    static let defaults: [Service] = []
 }
 
 @MainActor @Observable

@@ -49,6 +49,9 @@ jobs:
           </plist>
           EOF
 
+      - name: Ad-hoc code sign
+        run: codesign --force --deep --sign - --entitlements WebMux.entitlements WebMux.app
+
       - name: Zip app bundle
         run: zip -r "WebMux-${GITHUB_REF_NAME}.zip" WebMux.app
 

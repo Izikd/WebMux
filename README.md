@@ -21,8 +21,7 @@ WebMux is a lightweight native alternative to [Ferdium](https://ferdium.org) / F
 
 Each service runs in its own isolated webview with persistent cookies and storage, so you stay logged in across restarts.
 
-<!-- TODO: replace with actual screenshot -->
-<!-- <p align="center"><img src="screenshot.png" width="720" alt="WebMux screenshot"></p> -->
+<p align="center"><img src="screenshot.png" width="720" alt="WebMux screenshot"></p>
 
 ## Install
 

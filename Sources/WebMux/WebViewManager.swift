@@ -14,11 +14,15 @@ final class WebViewManager {
 
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.customUserAgent = Self.userAgent
+        wv.uiDelegate = linkDelegate
+        wv.navigationDelegate = linkDelegate
         wv.load(URLRequest(url: service.url))
         webViews[service.id] = wv
         applyFont(to: wv)
         return wv
     }
+
+    private let linkDelegate = WebViewLinkDelegate()
 
     func removeWebView(for id: UUID) {
         webViews.removeValue(forKey: id)
@@ -65,4 +69,43 @@ struct WebViewContainer: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView { webView }
     func updateNSView(_ nsView: WKWebView, context: Context) {}
+}
+
+final class WebViewLinkDelegate: NSObject, WKUIDelegate, WKNavigationDelegate {
+    // Handle target="_blank" links (window.open)
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let url = navigationAction.request.url {
+            NSWorkspace.shared.open(url)
+        }
+        return nil
+    }
+
+    // Handle navigation to external domains — open in system browser
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url,
+              let currentHost = webView.url?.host else {
+            decisionHandler(.allow)
+            return
+        }
+
+        // Allow same-domain navigation and initial loads
+        if navigationAction.targetFrame != nil,
+           let host = url.host,
+           (host == currentHost || host.hasSuffix(".\(currentHost)") || currentHost.hasSuffix(".\(host)")) {
+            decisionHandler(.allow)
+            return
+        }
+
+        // External link clicked — open in browser
+        if navigationAction.navigationType == .linkActivated,
+           let host = url.host, host != currentHost {
+            NSWorkspace.shared.open(url)
+            decisionHandler(.cancel)
+            return
+        }
+
+        decisionHandler(.allow)
+    }
 }

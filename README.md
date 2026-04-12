@@ -24,7 +24,18 @@ Each service runs in its own isolated webview with persistent cookies and storag
 <!-- TODO: replace with actual screenshot -->
 <!-- <p align="center"><img src="screenshot.png" width="720" alt="WebMux screenshot"></p> -->
 
-## Quick Start
+## Install
+
+Download the latest `.zip` from [Releases](https://github.com/Izikd/WebMux/releases), extract `WebMux.app`, and drag it to `/Applications`.
+
+> **Note:** WebMux is not notarized with Apple, so macOS will block the first launch. To allow it:
+> 1. Open the app (macOS will show a warning — click **Done**)
+> 2. Go to **System Settings → Privacy & Security**
+> 3. Click **Open Anyway** next to the WebMux message
+>
+> You only need to do this once. Alternatively, run `xattr -cr WebMux.app` in Terminal before opening.
+
+## Build from Source
 
 ```bash
 git clone git@github.com:Izikd/WebMux.git

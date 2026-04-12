@@ -5,7 +5,7 @@ import WebKit
 final class WebViewManager {
     private var webViews: [UUID: WKWebView] = [:]
 
-    private static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    private static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15"
 
     func webView(for service: Service) -> WKWebView {
         if let existing = webViews[service.id] { return existing }
@@ -84,23 +84,27 @@ final class WebViewLinkDelegate: NSObject, WKUIDelegate, WKNavigationDelegate {
     // Handle navigation to external domains — open in system browser
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        guard let url = navigationAction.request.url,
-              let currentHost = webView.url?.host else {
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.allow)
+            return
+        }
+
+        let host = url.host ?? ""
+
+        guard let currentHost = webView.url?.host else {
             decisionHandler(.allow)
             return
         }
 
         // Allow same-domain navigation and initial loads
         if navigationAction.targetFrame != nil,
-           let host = url.host,
            (host == currentHost || host.hasSuffix(".\(currentHost)") || currentHost.hasSuffix(".\(host)")) {
             decisionHandler(.allow)
             return
         }
 
         // External link clicked — open in browser
-        if navigationAction.navigationType == .linkActivated,
-           let host = url.host, host != currentHost {
+        if navigationAction.navigationType == .linkActivated, host != currentHost {
             NSWorkspace.shared.open(url)
             decisionHandler(.cancel)
             return

@@ -1,4 +1,15 @@
+# Build artifacts
 .build/
 WebMux.app/
+
+# SPM
 .swiftpm/
 Package.resolved
+
+# macOS
+.DS_Store
+*.xcodeproj
+xcuserdata/
+
+# App bundle signatures (local dev signing)
+*.app/Contents/_CodeSignature/

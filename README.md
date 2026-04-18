@@ -91,6 +91,15 @@ WebMux/
 
 </details>
 
+## Troubleshooting
+
+**Keychain password prompt on every rebuild** — Services like WhatsApp use WebCrypto keys stored in the macOS Keychain. When you rebuild, the binary's code signature changes and macOS asks for permission again. To fix this once:
+
+1. Open **Keychain Access**
+2. Search for **WebMux WebCrypto**
+3. Double-click the entry → **Access Control** tab
+4. Select **Allow all applications to access this item** → **Save Changes**
+
 ## Dependencies
 
 - [FaviconFinder](https://github.com/will-lumley/FaviconFinder) — favicon detection

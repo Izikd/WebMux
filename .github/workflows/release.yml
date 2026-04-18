@@ -16,6 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Generate build info
+        run: |
+          cat > Sources/WebMux/BuildInfo.swift << SWIFT
+          // Auto-generated
+          enum BuildInfo {
+              static let version = "${GITHUB_REF_NAME#v}"
+              static let buildDate = "$(date '+%Y-%m-%d')"
+          }
+          SWIFT
+
       - name: Build release binary
         run: swift build -c release
 

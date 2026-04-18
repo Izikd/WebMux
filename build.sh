@@ -96,6 +96,8 @@ PLIST
 }
 
 do_run() {
+    pkill -f "$APP_NAME.app/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+    sleep 0.5
     do_bundle debug
     info "Launching $APP_NAME..."
     open "$BUNDLE"

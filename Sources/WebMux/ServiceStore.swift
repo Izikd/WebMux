@@ -1,4 +1,5 @@
 import Foundation
+import os
 import WebKit
 
 struct Service: Codable, Identifiable, Hashable {
@@ -8,34 +9,109 @@ struct Service: Codable, Identifiable, Hashable {
     var faviconPath: String?
     var faviconSourceURL: String?
 
+    init(id: UUID, name: String, url: URL, faviconPath: String? = nil, faviconSourceURL: String? = nil) {
+        self.id = id
+        self.name = name
+        self.url = url
+        self.faviconPath = faviconPath
+        self.faviconSourceURL = faviconSourceURL
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        url = try container.decode(URL.self, forKey: .url)
+        faviconPath = try container.decodeIfPresent(String.self, forKey: .faviconPath)
+        faviconSourceURL = try container.decodeIfPresent(String.self, forKey: .faviconSourceURL)
+    }
+
     static let defaults: [Service] = []
+}
+
+/// Describes why `services.json` could not be loaded, so the UI can tell the user.
+struct ServiceLoadFailure: Identifiable {
+    let id = UUID()
+    /// The backup file if the unreadable file was moved aside, otherwise the original file left in place.
+    let fileURL: URL
+    /// `true` if the file was moved to a backup; `false` if the move failed and saving is disabled this session.
+    let movedToBackup: Bool
+    let errorDescription: String
 }
 
 @MainActor @Observable
 final class ServiceStore {
     var services: [Service] = []
+    /// Set when `services.json` existed but could not be read. The UI clears it after showing an alert.
+    var loadFailure: ServiceLoadFailure?
 
-    private static var fileURL: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("WebMux", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("services.json")
+    private static let logger = Logger(subsystem: "com.webmux.app", category: "ServiceStore")
+
+    private let directory: URL
+    private var isReadOnlyDueToLoadFailure = false
+
+    private var fileURL: URL {
+        directory.appendingPathComponent("services.json")
     }
 
-    init() { load() }
+    init(directory: URL? = nil) {
+        let dir = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("WebMux", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        self.directory = dir
+        load()
+    }
 
     func load() {
-        guard let data = try? Data(contentsOf: Self.fileURL),
-              let decoded = try? JSONDecoder().decode([Service].self, from: data) else {
+        let fm = FileManager.default
+        let url = fileURL
+
+        guard fm.fileExists(atPath: url.path) else {
+            // First launch: seed defaults and persist.
             services = Service.defaults
             save()
             return
         }
-        services = decoded
+
+        do {
+            let data = try Data(contentsOf: url)
+            services = try JSONDecoder().decode([Service].self, from: data)
+        } catch {
+            Self.logger.error("Failed to load services.json: \(error.localizedDescription, privacy: .public)")
+
+            // Attempt to back up the corrupt file.
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyyMMdd-HHmmss"
+            let timestamp = formatter.string(from: Date())
+            let backupURL = url.deletingLastPathComponent()
+                .appendingPathComponent("services.json.corrupt-\(timestamp)")
+
+            do {
+                try fm.moveItem(at: url, to: backupURL)
+                Self.logger.info("Backed up corrupt file to \(backupURL.lastPathComponent, privacy: .public)")
+                loadFailure = ServiceLoadFailure(
+                    fileURL: backupURL, movedToBackup: true, errorDescription: error.localizedDescription
+                )
+            } catch let moveError {
+                Self.logger.error("Could not back up corrupt file: \(moveError.localizedDescription, privacy: .public). Entering read-only mode.")
+                isReadOnlyDueToLoadFailure = true
+                loadFailure = ServiceLoadFailure(
+                    fileURL: url, movedToBackup: false, errorDescription: error.localizedDescription
+                )
+            }
+
+            services = []
+        }
     }
 
     func save() {
-        try? JSONEncoder().encode(services).write(to: Self.fileURL)
+        guard !isReadOnlyDueToLoadFailure else { return }
+        do {
+            let data = try JSONEncoder().encode(services)
+            try data.write(to: fileURL, options: [.atomic])
+        } catch {
+            Self.logger.error("Failed to save services.json: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     func add(_ service: Service) {

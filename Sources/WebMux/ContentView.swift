@@ -75,6 +75,39 @@ struct ContentView: View {
         .onAppear {
             if selection == nil { selection = store.services.first?.id }
         }
+        .alert(
+            "Couldn't Load Your Services",
+            isPresented: Binding(
+                get: { store.loadFailure != nil },
+                set: { if !$0 { store.loadFailure = nil } }
+            ),
+            presenting: store.loadFailure
+        ) { failure in
+            Button("Show in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([failure.fileURL])
+            }
+            Button("OK", role: .cancel) {}
+        } message: { failure in
+            Text(loadFailureMessage(failure))
+        }
+    }
+
+    private func loadFailureMessage(_ failure: ServiceLoadFailure) -> String {
+        if failure.movedToBackup {
+            return """
+                WebMux couldn't read your saved services file, so it started with an empty list. \
+                The original file was kept as "\(failure.fileURL.lastPathComponent)".
+
+                \(failure.errorDescription)
+                """
+        }
+        return """
+            WebMux couldn't read your saved services file and couldn't back it up, so it started \
+            with an empty list. To protect the original file, changes won't be saved until you \
+            restart WebMux.
+
+            \(failure.errorDescription)
+            """
     }
 
     private func sidebarIcon(for service: Service) -> some View {

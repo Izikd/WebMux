@@ -227,6 +227,64 @@ final class WebViewLinkDelegate: NSObject, WKUIDelegate, WKNavigationDelegate, W
         }
     }
 
+    // MARK: WKUIDelegate — JavaScript alert / confirm / prompt
+
+    // Without these, WebKit behaves as if the user pressed Cancel: alert() is
+    // dropped, confirm() returns false and prompt() returns null.
+
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping @MainActor @Sendable () -> Void) {
+        let alert = Self.makeAlert(message: message, frame: frame)
+        alert.addButton(withTitle: "OK")
+        Self.present(alert, for: webView) { _ in completionHandler() }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping @MainActor @Sendable (Bool) -> Void) {
+        let alert = Self.makeAlert(message: message, frame: frame)
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+        Self.present(alert, for: webView) { completionHandler($0 == .alertFirstButtonReturn) }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String,
+                 defaultText: String?, initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping @MainActor @Sendable (String?) -> Void) {
+        let alert = Self.makeAlert(message: prompt, frame: frame)
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(string: defaultText ?? "")
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        Self.present(alert, for: webView) {
+            completionHandler($0 == .alertFirstButtonReturn ? field.stringValue : nil)
+        }
+    }
+
+    /// Titles the dialog with the requesting frame's host, like Safari does,
+    /// so users can tell which site (or embedded iframe) is asking.
+    private static func makeAlert(message: String, frame: WKFrameInfo) -> NSAlert {
+        let alert = NSAlert()
+        let host = frame.securityOrigin.host
+        alert.messageText = host.isEmpty ? "This page says:" : "\(host) says:"
+        alert.informativeText = message
+        return alert
+    }
+
+    /// Shows the alert as a sheet. Only the selected service's web view is in a
+    /// window, so a background service falls back to the app's main window.
+    private static func present(_ alert: NSAlert, for webView: WKWebView,
+                                completion: @escaping @MainActor (NSApplication.ModalResponse) -> Void) {
+        if let window = webView.window ?? NSApp.keyWindow ?? NSApp.mainWindow {
+            alert.beginSheetModal(for: window) { completion($0) }
+        } else {
+            completion(alert.runModal())
+        }
+    }
+
     // MARK: WKNavigationDelegate
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,

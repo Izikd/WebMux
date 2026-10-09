@@ -49,13 +49,20 @@ struct ContentView: View {
 
             Divider()
 
-            if let id = selection, let service = store.services.first(where: { $0.id == id }) {
-                WebViewContainer(webView: webViewManager.webView(for: service))
-                    .id(id)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group {
+                if let id = selection, let service = store.services.first(where: { $0.id == id }) {
+                    WebViewContainer(webView: webViewManager.webView(for: service))
+                        .id(id)
+                } else {
+                    Color.clear
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(GeometryReader { geo in
+                Color.clear
+                    .onAppear { webViewManager.contentSize = geo.size }
+                    .onChange(of: geo.size) { _, size in webViewManager.contentSize = size }
+            })
         }
         .sheet(isPresented: $showingAddSheet) {
             ServiceEditorView(model: ServiceEditorModel(), store: store)
@@ -74,6 +81,13 @@ struct ContentView: View {
         }
         .onAppear {
             if selection == nil { selection = store.services.first?.id }
+        }
+        .task {
+            guard GeneralSettings.shared.preloadServices else { return }
+            // Selected service first, then the rest in sidebar order.
+            let selected = store.services.filter { $0.id == selection }
+            let others = store.services.filter { $0.id != selection }
+            await webViewManager.preload(selected + others)
         }
         .alert(
             "Couldn't Load Your Services",

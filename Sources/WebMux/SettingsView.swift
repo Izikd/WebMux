@@ -1,6 +1,22 @@
 import SwiftUI
 
 @MainActor @Observable
+final class GeneralSettings {
+    static let shared = GeneralSettings()
+
+    private static let preloadKey = "preloadServices"
+
+    /// Load every service in the background at launch, one at a time. Defaults to on.
+    var preloadServices: Bool {
+        didSet { UserDefaults.standard.set(preloadServices, forKey: Self.preloadKey) }
+    }
+
+    private init() {
+        preloadServices = UserDefaults.standard.object(forKey: Self.preloadKey) as? Bool ?? true
+    }
+}
+
+@MainActor @Observable
 final class FontSettings {
     static let shared = FontSettings()
 
@@ -35,6 +51,7 @@ final class FontSettings {
 
 struct SettingsView: View {
     @Bindable var fontSettings = FontSettings.shared
+    @Bindable var generalSettings = GeneralSettings.shared
     var webViewManager: WebViewManager
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
@@ -46,6 +63,18 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            Text("General").font(.headline)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Preload all services at launch", isOn: $generalSettings.preloadServices)
+                Text("Services load in the background one at a time, starting with the selected one. Takes effect on next launch.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+
             Text("Font Settings").font(.headline)
 
             Toggle("Override fonts", isOn: $fontSettings.enabled)

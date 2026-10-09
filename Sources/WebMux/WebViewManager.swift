@@ -1,8 +1,10 @@
 import SwiftUI
 import WebKit
+import os
 
 @MainActor @Observable
 final class WebViewManager {
+    private static let logger = Logger(subsystem: "com.webmux.app", category: "WebViewManager")
     private var webViews: [UUID: WKWebView] = [:]
 
     private static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15"
@@ -21,20 +23,72 @@ final class WebViewManager {
         config.userContentController.addUserScript(blobScript)
         config.userContentController.add(linkDelegate, name: "blobDownload")
 
-        let wv = WKWebView(frame: .zero, configuration: config)
+        let wv = WKWebView(frame: CGRect(origin: .zero, size: contentSize), configuration: config)
         wv.customUserAgent = Self.userAgent
         wv.uiDelegate = linkDelegate
         wv.navigationDelegate = linkDelegate
         wv.load(URLRequest(url: service.url))
         webViews[service.id] = wv
+        pendingLoads.insert(ObjectIdentifier(wv))
         applyFont(to: wv)
         return wv
     }
 
     private let linkDelegate = WebViewLinkDelegate()
 
+    /// Size of the web content area, kept up to date by ContentView. New web views
+    /// (especially preloaded ones, which load before they're on screen) start at this
+    /// size so pages never lay out against a 0×0 viewport.
+    @ObservationIgnored var contentSize = CGSize(width: 948, height: 700)
+
+    init() {
+        linkDelegate.onLoadFinished = { [weak self] wv in self?.loadFinished(wv) }
+    }
+
+    // MARK: Staggered preload
+
+    /// Web views whose initial page load hasn't finished or failed yet.
+    @ObservationIgnored private var pendingLoads: Set<ObjectIdentifier> = []
+    @ObservationIgnored private var loadWaiters: [ObjectIdentifier: CheckedContinuation<Void, Never>] = [:]
+
+    /// Creates web views for `services` one at a time, starting the next only after
+    /// the previous one finishes loading (or `timeout` passes), to avoid a launch storm.
+    func preload(_ services: [Service], timeout: Duration = .seconds(15)) async {
+        for service in services {
+            guard !Task.isCancelled else { return }
+            let start = ContinuousClock.now
+            let wv = webView(for: service)
+            await waitForInitialLoad(of: wv, timeout: timeout)
+            Self.logger.info("Preloaded \(service.name, privacy: .public) in \(ContinuousClock.now - start, privacy: .public)")
+        }
+    }
+
+    private func waitForInitialLoad(of wv: WKWebView, timeout: Duration) async {
+        let key = ObjectIdentifier(wv)
+        guard pendingLoads.contains(key) else { return }
+        await withCheckedContinuation { continuation in
+            loadWaiters[key] = continuation
+            Task { [weak self] in
+                try? await Task.sleep(for: timeout)
+                self?.resumeWaiter(for: key)
+            }
+        }
+    }
+
+    private func loadFinished(_ wv: WKWebView) {
+        let key = ObjectIdentifier(wv)
+        pendingLoads.remove(key)
+        resumeWaiter(for: key)
+    }
+
+    private func resumeWaiter(for key: ObjectIdentifier) {
+        loadWaiters.removeValue(forKey: key)?.resume()
+    }
+
     func removeWebView(for id: UUID) {
-        webViews.removeValue(forKey: id)
+        if let wv = webViews.removeValue(forKey: id) {
+            loadFinished(wv)  // don't leave a preload waiting on a removed view
+        }
     }
 
     func reload(for id: UUID) {
@@ -286,6 +340,22 @@ final class WebViewLinkDelegate: NSObject, WKUIDelegate, WKNavigationDelegate, W
     }
 
     // MARK: WKNavigationDelegate
+
+    /// Called when a web view's navigation finishes or fails (used for staggered preload).
+    var onLoadFinished: ((WKWebView) -> Void)?
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        onLoadFinished?(webView)
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        onLoadFinished?(webView)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
+                 withError error: Error) {
+        onLoadFinished?(webView)
+    }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  preferences: WKWebpagePreferences,

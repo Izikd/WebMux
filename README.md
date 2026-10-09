@@ -44,6 +44,8 @@ cd WebMux
 
 Requires macOS 14 (Sonoma)+ and Swift 6.0+ (included with Xcode 16 or Command Line Tools).
 
+`build.sh` picks a working macOS SDK automatically. Some SDKs (e.g. macOS 27) need a SwiftUI macro plugin that only ships with Xcode, so with Command Line Tools alone the script falls back to the newest installed SDK that can compile the app. Set `SDKROOT` to override.
+
 ## Build Commands
 
 | Command | Description |

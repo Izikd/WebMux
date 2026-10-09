@@ -12,6 +12,56 @@ info()  { printf "\033[1;34m==>\033[0m %s\n" "$1"; }
 ok()    { printf "\033[1;32m==>\033[0m %s\n" "$1"; }
 fail()  { printf "\033[1;31m==>\033[0m %s\n" "$1" >&2; exit 1; }
 
+# --- SDK selection ---
+# Newer SDKs (e.g. macOS 27) declare SwiftUI's @State as a macro whose plugin
+# (SwiftUIMacros) ships only with Xcode. With Command Line Tools alone, the
+# default SDK may therefore fail to compile. Probe the default SDK first and
+# fall back to the newest installed SDK that works. An explicit SDKROOT wins.
+
+# Returns 0 if the given SDK (or the default one, if empty) can compile @State.
+sdk_supports_swiftui() {
+    local sdk="$1"
+    local probe_dir
+    probe_dir="$(mktemp -d)"
+    cat > "$probe_dir/probe.swift" << 'SWIFT'
+import SwiftUI
+struct Probe: View {
+    @State private var n = 0
+    var body: some View { Text("\(n)") }
+}
+SWIFT
+    local args=(-typecheck -target "$(uname -m)-apple-macos14.0" "$probe_dir/probe.swift")
+    [[ -n "$sdk" ]] && args+=(-sdk "$sdk")
+    local rc=0
+    swiftc "${args[@]}" > /dev/null 2>&1 || rc=$?
+    rm -rf "$probe_dir"
+    return "$rc"
+}
+
+select_sdk() {
+    if [[ -n "${SDKROOT:-}" ]]; then
+        info "Using SDK from environment: $SDKROOT"
+        return
+    fi
+    if sdk_supports_swiftui ""; then
+        return  # default SDK works, nothing to do
+    fi
+
+    local dev_dir sdk
+    dev_dir="$(xcode-select -p)"
+    while IFS= read -r sdk; do
+        [[ -L "$sdk" ]] && continue  # skip aliases like MacOSX.sdk
+        if sdk_supports_swiftui "$sdk"; then
+            export SDKROOT="$sdk"
+            info "Default SDK can't compile SwiftUI here; using $(basename "$sdk")"
+            return
+        fi
+    done < <(ls -d "$dev_dir"/SDKs/MacOSX*.sdk \
+                   "$dev_dir"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.sdk 2>/dev/null | sort -rV)
+
+    fail "No installed macOS SDK can compile SwiftUI. Install Xcode, or set SDKROOT to a working SDK."
+}
+
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [command]
@@ -44,11 +94,25 @@ enum BuildInfo {
 }
 SWIFT
 
+    select_sdk
+
+    # When building against a non-default SDK, the linker otherwise stamps the
+    # binary with the deployment target (14.0) as its SDK version, which makes
+    # AppKit/SwiftUI fall back to old macOS 14 compatibility behaviour.
+    local link_flags=()
+    if [[ -n "${SDKROOT:-}" ]]; then
+        local sdk_version
+        sdk_version="$(plutil -extract Version raw "$SDKROOT/SDKSettings.json" 2>/dev/null || true)"
+        if [[ -n "$sdk_version" ]]; then
+            link_flags=(-Xlinker -platform_version -Xlinker macos -Xlinker 14.0 -Xlinker "$sdk_version")
+        fi
+    fi
+
     info "Building ($mode)..."
     if [[ "$mode" == "release" ]]; then
-        swift build -v -c release --package-path "$SCRIPT_DIR"
+        swift build -v -c release --package-path "$SCRIPT_DIR" ${link_flags[@]+"${link_flags[@]}"}
     else
-        swift build -v --package-path "$SCRIPT_DIR"
+        swift build -v --package-path "$SCRIPT_DIR" ${link_flags[@]+"${link_flags[@]}"}
     fi
     ok "Build complete"
 }

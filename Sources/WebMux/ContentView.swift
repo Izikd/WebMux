@@ -51,8 +51,10 @@ struct ContentView: View {
 
             Group {
                 if let id = selection, let service = store.services.first(where: { $0.id == id }) {
-                    WebViewContainer(webView: webViewManager.webView(for: service))
-                        .id(id)
+                    let webView = webViewManager.webView(for: service)
+                    // Keyed by the web view instance so a refresh swaps in the new view.
+                    WebViewContainer(webView: webView)
+                        .id(ObjectIdentifier(webView))
                 } else {
                     Color.clear
                 }
@@ -139,7 +141,7 @@ struct ContentView: View {
         .help(service.name)
         .onHover { if $0 { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
         .contextMenu {
-            Button("Refresh") { webViewManager.reload(for: service.id) }
+            Button("Refresh") { webViewManager.refresh(service) }
             Button("Edit...") { editingService = service }
         }
     }

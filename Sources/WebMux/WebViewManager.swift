@@ -91,8 +91,15 @@ final class WebViewManager {
         }
     }
 
-    func reload(for id: UUID) {
-        webViews[id]?.reload()
+    /// Throws away the service's web view (and its web content process) and loads the
+    /// service's home URL in a brand-new one — the same as quitting and relaunching,
+    /// for a single service. Cookies and storage are kept, so the user stays logged in.
+    func refresh(_ service: Service) {
+        if let old = webViews[service.id] {
+            old.stopLoading()
+            removeWebView(for: service.id)
+        }
+        _ = webView(for: service)
     }
 
     func applyFontToAll() {

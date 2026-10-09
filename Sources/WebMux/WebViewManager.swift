@@ -204,6 +204,29 @@ final class WebViewLinkDelegate: NSObject, WKUIDelegate, WKNavigationDelegate, W
         return nil
     }
 
+    // MARK: WKUIDelegate — <input type="file">
+
+    // On macOS, WKWebView shows no file picker unless the UI delegate provides one.
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping @MainActor @Sendable ([URL]?) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = parameters.allowsDirectories
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.resolvesAliases = true
+
+        let finish: (NSApplication.ModalResponse) -> Void = { response in
+            // nil tells WebKit the user cancelled, leaving the input unchanged.
+            completionHandler(response == .OK ? panel.urls : nil)
+        }
+        if let window = webView.window {
+            panel.beginSheetModal(for: window, completionHandler: finish)
+        } else {
+            panel.begin(completionHandler: finish)
+        }
+    }
+
     // MARK: WKNavigationDelegate
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,

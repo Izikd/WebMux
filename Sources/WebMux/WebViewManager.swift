@@ -87,6 +87,9 @@ final class WebViewManager {
 
     func removeWebView(for id: UUID) {
         if let wv = webViews.removeValue(forKey: id) {
+            wv.stopLoading()
+            // The content controller retains its message handlers; drop them with the view.
+            wv.configuration.userContentController.removeAllScriptMessageHandlers()
             loadFinished(wv)  // don't leave a preload waiting on a removed view
         }
     }

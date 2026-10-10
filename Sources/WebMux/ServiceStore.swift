@@ -73,6 +73,8 @@ final class ServiceStore {
 
     private let directory: URL
     private var isReadOnlyDueToLoadFailure = false
+    /// True only when the service list was decoded from an existing services.json.
+    private var loadedFromFile = false
 
     private var fileURL: URL {
         directory.appendingPathComponent("services.json")
@@ -100,6 +102,7 @@ final class ServiceStore {
         do {
             let data = try Data(contentsOf: url)
             services = try JSONDecoder().decode([Service].self, from: data)
+            loadedFromFile = true
         } catch {
             Self.logger.error("Failed to load services.json: \(error.localizedDescription, privacy: .public)")
 
@@ -151,9 +154,55 @@ final class ServiceStore {
     func remove(id: UUID) {
         services.removeAll { $0.id == id }
         save()
-        let identifier = id
+        FaviconFiles.removeAll(for: id)
         Task { @MainActor in
-            try? await WKWebsiteDataStore.remove(forIdentifier: identifier)
+            await Self.removeWebsiteData(for: id)
+        }
+    }
+
+    /// Deletes the service's cookies/storage. WebKit refuses while the data store is
+    /// still in use, which includes a short period after the last web view using it
+    /// is released ("in use by network process"), so retry with backoff.
+    private static func removeWebsiteData(for id: UUID) async {
+        var delay = Duration.milliseconds(500)
+        for attempt in 1...6 {
+            try? await Task.sleep(for: delay)
+            do {
+                try await WKWebsiteDataStore.remove(forIdentifier: id)
+                logger.info("Removed website data for \(id.uuidString, privacy: .public)")
+                return
+            } catch {
+                logger.info("Website data removal attempt \(attempt) failed: \(error.localizedDescription, privacy: .public)")
+            }
+            delay *= 2
+        }
+        logger.error("Giving up removing website data for \(id.uuidString, privacy: .public)")
+    }
+
+    /// Removes website data stores and icon files left behind by services that no longer
+    /// exist (e.g. removed by older versions). Safe: those stores have no web views.
+    func removeOrphanedServiceData() async {
+        // Only trust the list if it was read from an existing services.json. After a load
+        // failure (or a deleted file) it is empty and every session would look orphaned.
+        guard loadedFromFile else { return }
+        let known = Set(services.map(\.id))
+
+        for id in await WKWebsiteDataStore.allDataStoreIdentifiers where !known.contains(id) {
+            do {
+                try await WKWebsiteDataStore.remove(forIdentifier: id)
+                Self.logger.info("Removed orphaned website data \(id.uuidString, privacy: .public)")
+            } catch {
+                Self.logger.error("Could not remove orphaned website data \(id.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: FaviconFiles.directory, includingPropertiesForKeys: nil)) ?? []
+        for file in files where file.pathExtension == "png" {
+            // "<uuid>.png" or "<uuid>.preview.png"
+            let stem = file.lastPathComponent.components(separatedBy: ".").first ?? ""
+            guard let id = UUID(uuidString: stem), !known.contains(id) else { continue }
+            try? FileManager.default.removeItem(at: file)
         }
     }
 

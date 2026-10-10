@@ -8,7 +8,10 @@ struct WebMuxApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(store: store)
-                .task { await FaviconFetcher.fetchAll(store: store) }
+                .task {
+                    await store.removeOrphanedServiceData()
+                    await FaviconFetcher.fetchAll(store: store)
+                }
                 .sheet(isPresented: $showingAbout) { AboutView() }
         }
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))

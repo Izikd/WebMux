@@ -189,6 +189,54 @@ enum DownloadHelper {
     }
 }
 
+// MARK: - Camera / microphone decisions
+
+/// Per-site camera/microphone choices the user asked to remember, stored in UserDefaults
+/// as "<scheme>://<host>:<port>|<device>" → granted.
+@MainActor
+enum MediaPermissions {
+    enum Device: String { case camera, microphone }
+
+    private static let defaultsKey = "mediaPermissions"
+
+    static func devices(for type: WKMediaCaptureType) -> [Device] {
+        switch type {
+        case .camera: [.camera]
+        case .microphone: [.microphone]
+        case .cameraAndMicrophone: [.camera, .microphone]
+        @unknown default: [.camera, .microphone]
+        }
+    }
+
+    /// The remembered decision if every requested device has one and they agree; otherwise nil (ask).
+    static func decision(for origin: WKSecurityOrigin, devices: [Device]) -> Bool? {
+        let saved = stored()
+        let values = devices.map { saved[key(origin, $0)] }
+        guard let first = values.first ?? nil, values.allSatisfy({ $0 == first }) else { return nil }
+        return first
+    }
+
+    static func remember(_ granted: Bool, for origin: WKSecurityOrigin, devices: [Device]) {
+        var saved = stored()
+        for device in devices { saved[key(origin, device)] = granted }
+        UserDefaults.standard.set(saved, forKey: defaultsKey)
+    }
+
+    static func resetAll() {
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
+    }
+
+    static var hasRememberedDecisions: Bool { !stored().isEmpty }
+
+    private static func stored() -> [String: Bool] {
+        UserDefaults.standard.dictionary(forKey: defaultsKey) as? [String: Bool] ?? [:]
+    }
+
+    private static func key(_ origin: WKSecurityOrigin, _ device: Device) -> String {
+        "\(origin.protocol)://\(origin.host):\(origin.port)|\(device.rawValue)"
+    }
+}
+
 // MARK: - WebView Delegate (Navigation + UI + Downloads + Blob)
 
 final class WebViewLinkDelegate: NSObject, WKUIDelegate, WKNavigationDelegate, WKDownloadDelegate, WKScriptMessageHandler {
@@ -346,6 +394,33 @@ final class WebViewLinkDelegate: NSObject, WKUIDelegate, WKNavigationDelegate, W
             alert.beginSheetModal(for: window) { completion($0) }
         } else {
             completion(alert.runModal())
+        }
+    }
+
+    // MARK: WKUIDelegate — camera / microphone
+
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
+                 decisionHandler: @escaping @MainActor @Sendable (WKPermissionDecision) -> Void) {
+        let devices = MediaPermissions.devices(for: type)
+        if let remembered = MediaPermissions.decision(for: origin, devices: devices) {
+            decisionHandler(remembered ? .grant : .deny)
+            return
+        }
+
+        let alert = NSAlert()
+        let site = origin.host.isEmpty ? "This page" : origin.host
+        alert.messageText = "Allow \(site) to use your \(devices.map(\.rawValue).joined(separator: " and "))?"
+        alert.addButton(withTitle: "Allow")
+        alert.addButton(withTitle: "Don't Allow")
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "Remember my choice for this site"
+        Self.present(alert, for: webView) { response in
+            let granted = response == .alertFirstButtonReturn
+            if alert.suppressionButton?.state == .on {
+                MediaPermissions.remember(granted, for: origin, devices: devices)
+            }
+            decisionHandler(granted ? .grant : .deny)
         }
     }
 

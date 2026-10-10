@@ -55,6 +55,7 @@ struct SettingsView: View {
     var webViewManager: WebViewManager
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
+    @State private var hasMediaDecisions = MediaPermissions.hasRememberedDecisions
 
     private var filteredFonts: [String] {
         if searchText.isEmpty { return FontSettings.availableFonts }
@@ -72,6 +73,17 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            HStack {
+                Text("Camera & microphone choices")
+                Spacer()
+                Button("Reset") {
+                    MediaPermissions.resetAll()
+                    hasMediaDecisions = false
+                }
+                .disabled(!hasMediaDecisions)
+            }
+            .help("Forget remembered Allow / Don't Allow choices; sites will ask again.")
 
             Divider()
 

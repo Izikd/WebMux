@@ -55,6 +55,8 @@ jobs:
             <key>LSMinimumSystemVersion</key><string>14.0</string>
             <key>NSAppTransportSecurity</key>
             <dict><key>NSAllowsArbitraryLoads</key><true/></dict>
+            <key>NSCameraUsageDescription</key><string>Web apps in WebMux use the camera for video calls.</string>
+            <key>NSMicrophoneUsageDescription</key><string>Web apps in WebMux use the microphone for calls and voice messages.</string>
           </dict>
           </plist>
           EOF

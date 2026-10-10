@@ -171,6 +171,10 @@ do_bundle() {
     </dict>
     <key>NSHumanReadableCopyright</key>
     <string>MIT License</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Web apps in WebMux use the camera for video calls.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Web apps in WebMux use the microphone for calls and voice messages.</string>
 </dict>
 </plist>
 PLIST

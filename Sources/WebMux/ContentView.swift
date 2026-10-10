@@ -70,7 +70,13 @@ struct ContentView: View {
             ServiceEditorView(model: ServiceEditorModel(), store: store)
         }
         .sheet(item: $editingService) { service in
-            ServiceEditorView(model: ServiceEditorModel(editing: service), store: store, onRemove: {
+            ServiceEditorView(model: ServiceEditorModel(editing: service), store: store, onSave: {
+                // A changed URL only takes effect in a new web view.
+                if let updated = store.services.first(where: { $0.id == service.id }),
+                   updated.url != service.url {
+                    webViewManager.refresh(updated)
+                }
+            }, onRemove: {
                 webViewManager.removeWebView(for: service.id)
                 if selection == service.id {
                     selection = store.services.first(where: { $0.id != service.id })?.id

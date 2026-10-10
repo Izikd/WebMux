@@ -333,9 +333,13 @@ struct ServiceEditorView: View {
             if let i = store.services.firstIndex(where: { $0.id == existing.id }) {
                 store.services[i].name = trimmedName
                 store.services[i].url = url
-                saveIcon(for: existing.id)
+                if !saveIcon(for: existing.id) {
+                    // No icon chosen (e.g. list re-fetched after a preview): keep the original.
+                    restoreOriginalIcon(for: existing.id)
+                }
                 store.save()
             }
+            removePreviewFile(for: existing.id)
         } else {
             // Add new
             let service = Service(id: UUID(), name: trimmedName, url: url)
@@ -346,49 +350,53 @@ struct ServiceEditorView: View {
         dismiss()
     }
 
+    /// Previews go to a separate file so the saved icon stays intact until Save.
     private func previewIcon(_ icon: ServiceEditorModel.IconOption, for id: UUID) {
-        saveIconFile(icon, for: id)
-        store.updateFaviconPath(for: id, path: iconPath(for: id).path)
+        let path = FaviconFiles.previewURL(for: id)
+        writeIconFile(icon, to: path)
+        store.updateFaviconPath(for: id, path: path.path)
     }
 
     private func cancelEdit() {
-        // Restore original icon if we previewed a different one
-        if let service = model.editingService, let origPath = originalFaviconPath {
-            if let i = store.services.firstIndex(where: { $0.id == service.id }) {
-                store.services[i].faviconPath = origPath
-                store.services[i].faviconSourceURL = originalFaviconSourceURL
-                store.save()
-            }
+        if let service = model.editingService {
+            restoreOriginalIcon(for: service.id)
+            store.save()
+            removePreviewFile(for: service.id)
         }
         dismiss()
     }
 
-    private func iconPath(for id: UUID) -> URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("WebMux/favicons", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("\(id.uuidString).png")
+    private func restoreOriginalIcon(for id: UUID) {
+        guard let i = store.services.firstIndex(where: { $0.id == id }) else { return }
+        store.services[i].faviconPath = originalFaviconPath
+        store.services[i].faviconSourceURL = originalFaviconSourceURL
     }
 
-    private func saveIconFile(_ icon: ServiceEditorModel.IconOption, for id: UUID) {
-        let path = iconPath(for: id)
+    private func removePreviewFile(for id: UUID) {
+        try? FileManager.default.removeItem(at: FaviconFiles.previewURL(for: id))
+    }
+
+    private func writeIconFile(_ icon: ServiceEditorModel.IconOption, to path: URL) {
         if let png = ImageUtils.resize(icon.image, to: 64) {
-            try? png.write(to: path)
+            try? png.write(to: path, options: .atomic)
         } else {
-            try? icon.data.write(to: path)
+            try? icon.data.write(to: path, options: .atomic)
         }
     }
 
-    private func saveIcon(for id: UUID) {
+    /// Writes the selected icon as the service's saved icon. Returns false if none is selected.
+    @discardableResult
+    private func saveIcon(for id: UUID) -> Bool {
         guard let selectedID = model.selectedIconID,
-              let icon = model.icons.first(where: { $0.id == selectedID }) else { return }
-        saveIconFile(icon, for: id)
-        let path = iconPath(for: id)
+              let icon = model.icons.first(where: { $0.id == selectedID }) else { return false }
+        let path = FaviconFiles.url(for: id)
+        writeIconFile(icon, to: path)
         store.updateFaviconPath(for: id, path: path.path)
         if let i = store.services.firstIndex(where: { $0.id == id }) {
             store.services[i].faviconSourceURL = icon.sourceURL
             store.save()
         }
+        return true
     }
 }
 

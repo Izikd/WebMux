@@ -29,6 +29,30 @@ struct Service: Codable, Identifiable, Hashable {
     static let defaults: [Service] = []
 }
 
+/// Locations of cached service icons: `<id>.png` is the saved icon, and
+/// `<id>.preview.png` is a temporary file used while picking an icon in the editor.
+enum FaviconFiles {
+    static var directory: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("WebMux/favicons", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    static func url(for id: UUID) -> URL {
+        directory.appendingPathComponent("\(id.uuidString).png")
+    }
+
+    static func previewURL(for id: UUID) -> URL {
+        directory.appendingPathComponent("\(id.uuidString).preview.png")
+    }
+
+    static func removeAll(for id: UUID) {
+        try? FileManager.default.removeItem(at: url(for: id))
+        try? FileManager.default.removeItem(at: previewURL(for: id))
+    }
+}
+
 /// Describes why `services.json` could not be loaded, so the UI can tell the user.
 struct ServiceLoadFailure: Identifiable {
     let id = UUID()

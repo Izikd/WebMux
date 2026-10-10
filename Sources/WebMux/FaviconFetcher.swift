@@ -3,13 +3,6 @@ import FaviconFinder
 import AppKit
 
 enum FaviconFetcher {
-    private static var cacheDir: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("WebMux/favicons", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
-
     @MainActor
     static func fetch(for service: Service, store: ServiceStore) async {
         do {
@@ -20,7 +13,7 @@ enum FaviconFetcher {
             guard let best = try? favicons.largest(),
                   let img = best.image else { return }
 
-            let path = cacheDir.appendingPathComponent("\(service.id.uuidString).png")
+            let path = FaviconFiles.url(for: service.id)
 
             guard let nsImg = NSImage(data: img.data) else { return }
             if let png = ImageUtils.resize(nsImg, to: 64) {

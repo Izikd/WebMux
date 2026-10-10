@@ -310,10 +310,36 @@ final class WebViewLinkDelegate: NSObject, WKUIDelegate, WKNavigationDelegate, W
             }
             return nil
         }
-        if let url = navigationAction.request.url {
-            NSWorkspace.shared.open(url)
+
+        let url = navigationAction.request.url
+        let requestedSize = windowFeatures.width != nil || windowFeatures.height != nil
+        guard PopupPolicy.opensInApp(url: url, openerURL: webView.url, requestedSize: requestedSize) else {
+            if let url { NSWorkspace.shared.open(url) }
+            return nil
         }
-        return nil
+
+        // WebKit requires the popup to use the configuration it passes in; that keeps it in
+        // the same session and gives it a working window.opener.
+        let popup = WKWebView(frame: .zero, configuration: configuration)
+        popup.customUserAgent = webView.customUserAgent
+        popup.uiDelegate = self
+        popup.navigationDelegate = self
+        let controller = PopupWindowController(
+            webView: popup, features: windowFeatures,
+            isSignIn: url.map(PopupPolicy.looksLikeSignIn) ?? true,
+            parentWindow: webView.window ?? NSApp.mainWindow,
+            onClose: { [weak self] closed in self?.popups.removeAll { $0 === closed } }
+        )
+        popups.append(controller)
+        return popup  // WebKit loads the request into it
+    }
+
+    /// Open popup windows; kept alive here until they close.
+    private var popups: [PopupWindowController] = []
+
+    // The page called window.close().
+    func webViewDidClose(_ webView: WKWebView) {
+        popups.first { $0.webView === webView }?.close()
     }
 
     // MARK: WKUIDelegate — <input type="file">

@@ -25,9 +25,17 @@ Each service runs in its own isolated webview with persistent cookies and storag
 
 ## Install
 
-Download the latest `.zip` from [Releases](https://github.com/Izikd/WebMux/releases), extract `WebMux.app`, and drag it to `/Applications`.
+The quickest way is the install script. It downloads the latest release, quits the running copy, replaces `/Applications/WebMux.app` and relaunches it:
 
-> **Note:** WebMux is not notarized with Apple, so macOS will block the first launch. To allow it:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Izikd/WebMux/main/install.sh | bash
+```
+
+From a clone, run `./install.sh` (latest), `./install.sh v0.3.0` (a specific release) or `./install.sh --list`. See `./install.sh --help` for all options.
+
+Or download the latest `.zip` from [Releases](https://github.com/Izikd/WebMux/releases), extract `WebMux.app`, and drag it to `/Applications`.
+
+> **Note:** WebMux is not notarized with Apple, so macOS will block the first launch of a manually downloaded copy (the install script doesn't hit this, because `curl` downloads aren't quarantined). To allow it:
 > 1. Open the app (macOS will show a warning — click **Done**)
 > 2. Go to **System Settings → Privacy & Security**
 > 3. Click **Open Anyway** next to the WebMux message
